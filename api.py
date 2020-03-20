@@ -1,14 +1,13 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-import abc
 import json
 import datetime
+import functools
 import logging
 import hashlib
 import uuid
 from optparse import OptionParser
-from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from scoring import get_score, get_interests
+from weakref import WeakKeyDictionary
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
@@ -36,41 +35,95 @@ GENDERS = {
 }
 
 
-class CharField(object):
-    pass
+class Field():
+    def __init__(self,  required, nullable=False):
+        self.data = WeakKeyDictionary()
+        self.required = required
+        self.nullable = nullable
+
+    def __get__(self, instance, owner):
+        return self.data.get(instance)
 
 
-class ArgumentsField(object):
-    pass
+class CharField(Field):
+    def __set__(self, instance, value):
+        if value or not self.nullable:
+            if not isinstance(value, str):
+                raise ValueError("CharField must be string!")
+        self.data[instance] = value
+
+
+class ArgumentsField(Field):
+    def __set__(self, instance, value):
+        if value or not self.nullable:
+            if not isinstance(value, dict):
+                raise ValueError("Argument must be dict!")
+        self.data[instance] = value
 
 
 class EmailField(CharField):
-    pass
+    def __set__(self, instance, value):
+        super().__set__(instance, value)
+        if value and "@" not in value:
+            raise ValueError("Email must be contain '@' ")
 
 
-class PhoneField(object):
-    pass
+class PhoneField(Field):
+    def __set__(self, instance, value):
+        if value:
+            if not (isinstance(value, str) or isinstance(value, int)):
+                raise ValueError("Number phone must be str or int")
+            if len(str(value)) != 11:
+                raise ValueError("Phone numbers must be contain 11 numbers ")
+            if not self.check_start_with_7(value):
+                raise ValueError("Phone must be start whith 7")
+        self.data[instance] = value
+
+    def check_start_with_7(self, phone):
+        if isinstance(phone, str):
+            return phone.startswith('7')
+        return (phone // 1_000_000_00_00) == 7
 
 
-class DateField(object):
-    pass
+class DateField(Field):
+    def __set__(self, instance, value):
+        if value or not self.nullable:
+            if not datetime.datetime.strptime(value, "%d.%m.%Y"):
+                raise ValueError("Argument must be date fromat DD.MM.YYYY !")
+        self.data[instance] = value
 
 
-class BirthDayField(object):
-    pass
+class BirthDayField(DateField):
+    def __set__(self, instance, value):
+        super().__set__(instance, value)
+        if value:
+            #  70 year in days = 70 * 365days + 17 days in high-altitude year
+            if (datetime.datetime.now() - datetime.datetime.strptime(value, "%d.%m.%Y")).days > 70 * 365 + 17:
+                raise ValueError("Age must be less than 70 years old")
 
 
-class GenderField(object):
-    pass
+class GenderField(Field):
+    def __set__(self, instance, value):
+        if value or not self.nullable:
+            if not isinstance(value, int) or value not in GENDERS.keys():
+                raise ValueError("Gender must be 0,1 or 2")
+        self.data[instance] = value
 
 
-class ClientIDsField(object):
-    pass
+class ClientIDsField(Field):
+    def __set__(self, instance, value):
+        if not value or not isinstance(value, list) or not all([isinstance(x, int) for x in value]):
+            raise ValueError("Client ids must be list<int>!")
+        self.data[instance] = value
 
 
 class ClientsInterestsRequest(object):
     client_ids = ClientIDsField(required=True)
     date = DateField(required=False, nullable=True)
+
+    def __init__(self, client_ids=None, date=None):
+        self.client_ids = client_ids
+        self.date = date
 
 
 class OnlineScoreRequest(object):
@@ -81,6 +134,25 @@ class OnlineScoreRequest(object):
     birthday = BirthDayField(required=False, nullable=True)
     gender = GenderField(required=False, nullable=True)
 
+    def __init__(self, arguments):
+        self.arguments = arguments
+        self.first_name = None or arguments.get("first_name", None)
+        self.last_name = None or arguments.get("last_name", None)
+        self.email = None or arguments.get("email", None)
+        self.phone = None or arguments.get("phone", None)
+        self.birthday = None or arguments.get("birthday", None)
+        self.gender = None or arguments.get("gender", None)
+
+    def valid_params(self):
+        return any((
+            all((self.first_name is not None, self.last_name is not None)),
+            all((self.phone is not None, self.email is not None)),
+            all((self.birthday is not None, self.gender is not None))
+        ))
+
+    def get_list_no_empty_field(self):
+        return [key for key in self.arguments if self.arguments[key]is not None]
+
 
 class MethodRequest(object):
     account = CharField(required=False, nullable=True)
@@ -89,6 +161,14 @@ class MethodRequest(object):
     arguments = ArgumentsField(required=True, nullable=True)
     method = CharField(required=True, nullable=False)
 
+    def __init__(self, account=None, login=None, token=None,
+                 arguments=None, method=None):
+        self.account = account
+        self.login = login
+        self.token = token
+        self.arguments = arguments
+        self.method = method
+
     @property
     def is_admin(self):
         return self.login == ADMIN_LOGIN
@@ -96,17 +176,67 @@ class MethodRequest(object):
 
 def check_auth(request):
     if request.is_admin:
-        digest = hashlib.sha512(datetime.datetime.now().strftime("%Y%m%d%H") + ADMIN_SALT).hexdigest()
+        digest = hashlib.sha512((datetime.datetime.now().strftime("%Y%m%d%H") + ADMIN_SALT).encode()).hexdigest()
     else:
-        digest = hashlib.sha512(request.account + request.login + SALT).hexdigest()
+        digest = hashlib.sha512((request.account + request.login + SALT).encode()).hexdigest()
     if digest == request.token:
         return True
     return False
 
 
+def auth_req(func):
+    @functools.wraps(func)
+    def decorator(request, *arg, **kwargs):
+        if check_auth(request):
+            return func(request, *arg, **kwargs)
+        logging.info('Bad auth')
+        return ERRORS[FORBIDDEN], FORBIDDEN
+    return decorator
+
+
+@auth_req
+def handler_online_score(request, ctx, store):
+    onlineScoreRequest = OnlineScoreRequest(request.arguments)
+    if onlineScoreRequest.valid_params():
+        ctx['has'] = onlineScoreRequest.get_list_no_empty_field()
+        if request.is_admin:
+            return {"score": 42}, OK
+        return {"score": get_score(
+            store=store,
+            first_name=onlineScoreRequest.first_name,
+            last_name=onlineScoreRequest.last_name,
+            email=onlineScoreRequest.email,
+            phone=onlineScoreRequest.phone,
+            birthday=onlineScoreRequest.birthday,
+            gender=onlineScoreRequest.gender,
+        )}, OK
+    raise ValueError("Not one paird is valid")
+
+
+@auth_req
+def handler_client_interests(request, ctx, store):
+    arguments = ClientsInterestsRequest(**request.arguments)
+    ctx['nclients'] = len(arguments.client_ids)
+    return {client_id: get_interests(store, client_id) for client_id in arguments.client_ids}, OK
+
+
 def method_handler(request, ctx, store):
-    response, code = None, None
-    return response, code
+    method_handlers = {
+        "online_score": handler_online_score,
+        "clients_interests": handler_client_interests
+    }
+    try:
+        request = MethodRequest(**request.get('body'))
+    except ValueError as e:
+        return ERRORS[INVALID_REQUEST], INVALID_REQUEST
+    logging.info(f"Method {request.method}")
+    try:
+        response, code = method_handlers[request.method](request, ctx, store)
+    except (ValueError, AttributeError, TypeError) as e:
+        logging.exception(e)
+        return {"error": e}, INVALID_REQUEST
+    else:
+        return response, code
 
 
 class MainHTTPHandler(BaseHTTPRequestHandler):
@@ -125,7 +255,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
         try:
             data_string = self.rfile.read(int(self.headers['Content-Length']))
             request = json.loads(data_string)
-        except:
+        except Exception:
             code = BAD_REQUEST
 
         if request:
@@ -134,7 +264,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
             if path in self.router:
                 try:
                     response, code = self.router[path]({"body": request, "headers": self.headers}, context, self.store)
-                except Exception, e:
+                except Exception as e:
                     logging.exception("Unexpected error: %s" % e)
                     code = INTERNAL_ERROR
             else:
