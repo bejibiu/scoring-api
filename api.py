@@ -89,7 +89,7 @@ class DateField(Field):
     def __set__(self, instance, value):
         if value or not self.nullable:
             if not datetime.datetime.strptime(value, "%d.%m.%Y"):
-                raise ValueError("Argument must be date fromat DD.MM.YYYY !")
+                raise ValueError("Date must be date fromat DD.MM.YYYY !")
         self.data[instance] = value
 
 
@@ -151,7 +151,7 @@ class OnlineScoreRequest(object):
         ))
 
     def get_list_no_empty_field(self):
-        return [key for key in self.arguments if self.arguments[key]is not None]
+        return [key for key in self.arguments if self.arguments[key] is not None]
 
 
 class MethodRequest(object):
@@ -228,6 +228,7 @@ def method_handler(request, ctx, store):
     try:
         request = MethodRequest(**request.get('body'))
     except ValueError as e:
+        logging.exception(e)
         return ERRORS[INVALID_REQUEST], INVALID_REQUEST
     logging.info(f"Method {request.method}")
     try:
