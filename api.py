@@ -7,7 +7,6 @@ import uuid
 from optparse import OptionParser
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from scoring import get_score, get_interests
-from weakref import WeakKeyDictionary
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
@@ -37,12 +36,12 @@ GENDERS = {
 
 class Field():
     def __init__(self,  required, nullable=False):
-        self.data = WeakKeyDictionary()
+        self.data = None
         self.required = required
         self.nullable = nullable
 
     def __get__(self, instance, owner):
-        return self.data.get(instance)
+        return self.data
 
 
 class CharField(Field):
@@ -50,7 +49,7 @@ class CharField(Field):
         if value or not self.nullable:
             if not isinstance(value, str):
                 raise ValueError("CharField must be string!")
-        self.data[instance] = value
+        self.data = value
 
 
 class ArgumentsField(Field):
@@ -58,7 +57,7 @@ class ArgumentsField(Field):
         if value or not self.nullable:
             if not isinstance(value, dict):
                 raise ValueError("Argument must be dict!")
-        self.data[instance] = value
+        self.data = value
 
 
 class EmailField(CharField):
@@ -77,7 +76,7 @@ class PhoneField(Field):
                 raise ValueError("Phone numbers must be contain 11 numbers ")
             if not self.check_start_with_7(value):
                 raise ValueError("Phone must be start whith 7")
-        self.data[instance] = value
+        self.data = value
 
     def check_start_with_7(self, phone):
         if isinstance(phone, str):
@@ -90,7 +89,7 @@ class DateField(Field):
         if value or not self.nullable:
             if not datetime.datetime.strptime(value, "%d.%m.%Y"):
                 raise ValueError("Date must be date fromat DD.MM.YYYY !")
-        self.data[instance] = value
+        self.data = value
 
 
 class BirthDayField(DateField):
@@ -107,14 +106,14 @@ class GenderField(Field):
         if value or not self.nullable:
             if not isinstance(value, int) or value not in GENDERS.keys():
                 raise ValueError("Gender must be 0,1 or 2")
-        self.data[instance] = value
+        self.data = value
 
 
 class ClientIDsField(Field):
     def __set__(self, instance, value):
         if not value or not isinstance(value, list) or not all([isinstance(x, int) for x in value]):
             raise ValueError("Client ids must be list<int>!")
-        self.data[instance] = value
+        self.data = value
 
 
 class ClientsInterestsRequest(object):
