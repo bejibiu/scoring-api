@@ -116,16 +116,25 @@ class ClientIDsField(Field):
         self.data = value
 
 
-class ClientsInterestsRequest(object):
+class Method:
+    def __init__(self):
+        self.method_fields = [k for k, v in self.__class__.__dict__.items()
+                              if isinstance(v, Field)]
+
+    def load_validate_field(self, **kwargs):
+        for filed_ in self.method_fields:
+            if filed_ in kwargs:
+                setattr(self, filed_, kwargs[filed_])
+            else:
+                setattr(self, filed_, None)
+
+
+class ClientsInterestsRequest(Method):
     client_ids = ClientIDsField(required=True)
     date = DateField(required=False, nullable=True)
 
-    def __init__(self, client_ids=None, date=None):
-        self.client_ids = client_ids
-        self.date = date
 
-
-class OnlineScoreRequest(object):
+class OnlineScoreRequest(Method):
     first_name = CharField(required=False, nullable=True)
     last_name = CharField(required=False, nullable=True)
     email = EmailField(required=False, nullable=True)
@@ -133,16 +142,7 @@ class OnlineScoreRequest(object):
     birthday = BirthDayField(required=False, nullable=True)
     gender = GenderField(required=False, nullable=True)
 
-    def __init__(self, arguments):
-        self.arguments = arguments
-        self.first_name = None or arguments.get("first_name", None)
-        self.last_name = None or arguments.get("last_name", None)
-        self.email = None or arguments.get("email", None)
-        self.phone = None or arguments.get("phone", None)
-        self.birthday = None or arguments.get("birthday", None)
-        self.gender = None or arguments.get("gender", None)
-
-    def valid_params(self):
+    def valid_pair(self):
         return any((
             all((self.first_name is not None, self.last_name is not None)),
             all((self.phone is not None, self.email is not None)),
@@ -150,23 +150,15 @@ class OnlineScoreRequest(object):
         ))
 
     def get_list_no_empty_field(self):
-        return [key for key in self.arguments if self.arguments[key] is not None]
+        return [key for key in self.method_fields if getattr(self, key) is not None]
 
 
-class MethodRequest(object):
+class MethodRequest(Method):
     account = CharField(required=False, nullable=True)
     login = CharField(required=True, nullable=True)
     token = CharField(required=True, nullable=True)
     arguments = ArgumentsField(required=True, nullable=True)
     method = CharField(required=True, nullable=False)
-
-    def __init__(self, account=None, login=None, token=None,
-                 arguments=None, method=None):
-        self.account = account
-        self.login = login
-        self.token = token
-        self.arguments = arguments
-        self.method = method
 
     @property
     def is_admin(self):
@@ -195,8 +187,9 @@ def auth_req(func):
 
 @auth_req
 def handler_online_score(request, ctx, store):
-    onlineScoreRequest = OnlineScoreRequest(request.arguments)
-    if onlineScoreRequest.valid_params():
+    onlineScoreRequest = OnlineScoreRequest()
+    onlineScoreRequest.load_validate_field(**request.arguments)
+    if onlineScoreRequest.valid_pair():
         ctx['has'] = onlineScoreRequest.get_list_no_empty_field()
         if request.is_admin:
             return {"score": 42}, OK
@@ -214,9 +207,10 @@ def handler_online_score(request, ctx, store):
 
 @auth_req
 def handler_client_interests(request, ctx, store):
-    arguments = ClientsInterestsRequest(**request.arguments)
-    ctx['nclients'] = len(arguments.client_ids)
-    return {client_id: get_interests(store, client_id) for client_id in arguments.client_ids}, OK
+    clientsInterestsRequest = ClientsInterestsRequest()
+    clientsInterestsRequest.load_validate_field(**request.arguments)
+    ctx['nclients'] = len(clientsInterestsRequest.client_ids)
+    return {client_id: get_interests(store, client_id) for client_id in clientsInterestsRequest.client_ids}, OK
 
 
 def method_handler(request, ctx, store):
@@ -225,13 +219,14 @@ def method_handler(request, ctx, store):
         "clients_interests": handler_client_interests
     }
     try:
-        request = MethodRequest(**request.get('body'))
+        method_request = MethodRequest()
+        method_request.load_validate_field(**request.get('body'))
     except ValueError as e:
         logging.exception(e)
         return ERRORS[INVALID_REQUEST], INVALID_REQUEST
-    logging.info(f"Method {request.method}")
+    logging.info(f"Method {method_request.method}")
     try:
-        response, code = method_handlers[request.method](request, ctx, store)
+        response, code = method_handlers[method_request.method](method_request, ctx, store)
     except (ValueError, AttributeError, TypeError) as e:
         logging.exception(e)
         return {"error": e}, INVALID_REQUEST
