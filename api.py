@@ -123,10 +123,8 @@ class Method:
 
     def load_validate_field(self, **kwargs):
         for filed_ in self.method_fields:
-            if filed_ in kwargs:
-                setattr(self, filed_, kwargs[filed_])
-            else:
-                setattr(self, filed_, None)
+            attr = None if filed_ not in kwargs else kwargs[filed_]
+            setattr(self, filed_, attr)
 
 
 class ClientsInterestsRequest(Method):
