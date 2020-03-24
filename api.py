@@ -48,7 +48,7 @@ class CharField(Field):
     def __set__(self, instance, value):
         if value or not self.nullable:
             if not isinstance(value, str):
-                raise ValueError("CharField must be string!")
+                raise ValueError(f"{instance.__class__.__name__} must be string!")
         self.data = value
 
 
@@ -69,13 +69,13 @@ class EmailField(CharField):
 
 class PhoneField(Field):
     def __set__(self, instance, value):
-        if value:
+        if value or not self.nullable:
             if not (isinstance(value, str) or isinstance(value, int)):
                 raise ValueError("Number phone must be str or int")
             if len(str(value)) != 11:
-                raise ValueError("Phone numbers must be contain 11 numbers ")
+                raise ValueError("Phone numbers must be contain 11 numbers")
             if not self.check_start_with_7(value):
-                raise ValueError("Phone must be start whith 7")
+                raise ValueError("Phone must be start with 7")
         self.data = value
 
     def check_start_with_7(self, phone):
@@ -84,12 +84,15 @@ class PhoneField(Field):
         return (phone // 1_000_000_00_00) == 7
 
 
-class DateField(Field):
+class DateField(CharField):
     def __set__(self, instance, value):
+        super().__set__(instance, value)
         if value or not self.nullable:
-            if not datetime.datetime.strptime(value, "%d.%m.%Y"):
-                raise ValueError("Date must be date fromat DD.MM.YYYY !")
-        self.data = value
+            try:
+                if not datetime.datetime.strptime(value, "%d.%m.%Y"):
+                    raise ValueError("Date must be date format DD.MM.YYYY !")
+            except ValueError:
+                raise ValueError("Date must be date format DD.MM.YYYY !")
 
 
 class BirthDayField(DateField):
