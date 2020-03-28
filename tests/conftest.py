@@ -26,8 +26,13 @@ def storage_set_name_value_to_offline(monkeypatch):
 @fixture
 def storage_set_name_value_to_success_reconnect(monkeypatch):
 
-    def mock_get_and_set_to_redis(*args, **kwargs):
-        yield ConnectionError
-        return Redis.get(*args, **kwargs)
-    monkeypatch.setattr(Redis, 'get', mock_get_and_set_to_redis)
-    monkeypatch.setattr(Redis, 'set', mock_get_and_set_to_redis)
+    def mock_get_to_redis(*args, **kwargs):
+        monkeypatch.setattr(Redis, 'get', Redis.get)
+        return ConnectionError
+
+    def mock_set_to_redis(*args, **kwargs):
+        monkeypatch.setattr(Redis, 'set', Redis.set)
+        return ConnectionError
+
+    monkeypatch.setattr(Redis, 'get', mock_get_to_redis)
+    monkeypatch.setattr(Redis, 'set', mock_set_to_redis)

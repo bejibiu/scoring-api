@@ -27,5 +27,5 @@ def test_cached_get_reconnect_if_connection_lost(storage_redis, storage_set_name
 
 
 def test_cached_get_reconnect_if_reconnection_success(storage_redis, storage_set_name_value_to_success_reconnect):
-    with pytest.raises(ConnectionError):
-        storage_redis.cache_set("123", "123", 30)
+    storage_redis.cache_set("123", "123", 30)
+    assert storage_redis.get("123") == "123"
