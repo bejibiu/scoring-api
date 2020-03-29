@@ -13,9 +13,13 @@ def cases(cases):
     def decorator(f):
         @functools.wraps(f)
         def wrapper(*args):
-            for c in cases:
+            for i, c in enumerate(cases):
                 new_args = args + (c if isinstance(c, tuple) else (c,))
-                f(*new_args)
+                try:
+                    f(*new_args)
+                except Exception as e:
+                    logging.error(f'Failed {i+1} test case with args= {new_args}')
+                    raise e
         return wrapper
     return decorator
 
