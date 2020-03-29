@@ -90,7 +90,7 @@ def test_false_email_field(value, required, nullable, message):
 def test_success_phone_field(value, required, nullable):
     phone_filed = PhoneField(required, nullable)
     PhoneField.__set__(phone_filed, phone_filed, value)
-    assert PhoneField.__get__(phone_filed, phone_filed, 'data') == value
+    assert PhoneField.__get__(phone_filed, phone_filed, 'data') == (str(value) if value else None)
 
 
 @pytest.mark.parametrize("value, required, nullable, message", (
@@ -114,7 +114,8 @@ def test_false_phone_field(value, required, nullable, message):
 def test_success_date_filed(value, required, nullable):
     date_filed = DateField(required, nullable)
     DateField.__set__(date_filed, date_filed, value)
-    assert DateField.__get__(date_filed, date_filed, 'data') == value
+    assert DateField.__get__(date_filed, date_filed, 'data') == (datetime.datetime.strptime(value, "%d.%m.%Y") if value
+                                                                 else None)
 
 
 @pytest.mark.parametrize("value, required, nullable, message", (
@@ -143,7 +144,8 @@ def test_false_date_filed(value, required, nullable, message):
 def test_success_birth_day_filed(value, required, nullable):
     birth_day_filed = BirthDayField(required, nullable)
     BirthDayField.__set__(birth_day_filed, birth_day_filed, value)
-    assert BirthDayField.__get__(birth_day_filed, birth_day_filed, 'data') == value
+    assert BirthDayField.__get__(birth_day_filed, birth_day_filed, 'data') == (
+        datetime.datetime.strptime(value, "%d.%m.%Y") if value else None)
 
 
 @pytest.mark.parametrize("value, required, nullable, message", (

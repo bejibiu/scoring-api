@@ -5,7 +5,7 @@ from redis import Redis
 
 @fixture
 def storage_redis():
-    return StorageRedis()
+    return StorageRedis(host='192.168.80.147')
 
 
 @fixture
@@ -24,15 +24,33 @@ def storage_set_name_value_to_offline(monkeypatch):
 
 
 @fixture
-def storage_set_name_value_to_success_reconnect(monkeypatch):
+def mock_get_with_success_reconnect(monkeypatch):
+
+    ones_raise_completed = False
 
     def mock_get_to_redis(*args, **kwargs):
-        monkeypatch.setattr(Redis, 'get', Redis.get)
-        return ConnectionError
-
-    def mock_set_to_redis(*args, **kwargs):
-        monkeypatch.setattr(Redis, 'set', Redis.set)
-        return ConnectionError
+        nonlocal ones_raise_completed
+        if ones_raise_completed:
+            monkeypatch.undo()
+            return Redis.set(*args, **kwargs)
+        ones_raise_completed = True
+        raise ConnectionError
 
     monkeypatch.setattr(Redis, 'get', mock_get_to_redis)
+
+
+@fixture
+def mock_set_with_success_reconnect(monkeypatch):
+
+    ones_raise_completed = False
+
+    def mock_set_to_redis(*args, **kwargs):
+        nonlocal ones_raise_completed
+        if ones_raise_completed:
+            monkeypatch.undo()
+            return Redis.set(*args, **kwargs)
+        ones_raise_completed = True
+        raise ConnectionError
+
     monkeypatch.setattr(Redis, 'set', mock_set_to_redis)
+

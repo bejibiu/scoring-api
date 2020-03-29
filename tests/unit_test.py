@@ -5,6 +5,8 @@ import unittest
 import logging
 
 import api
+from api import REDIS_HOST
+from store import StorageRedis
 
 
 def cases(cases):
@@ -23,9 +25,10 @@ class TestSuite(unittest.TestCase):
         self.context = {}
         self.headers = {}
         self.settings = {}
+        self.store = StorageRedis(REDIS_HOST)
 
     def get_response(self, request):
-        return api.method_handler({"body": request, "headers": self.headers}, self.context, self.settings)
+        return api.method_handler({"body": request, "headers": self.headers}, self.context, self.store)
 
     def set_valid_auth(self, request):
         if request.get("login") == api.ADMIN_LOGIN:

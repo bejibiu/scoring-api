@@ -7,10 +7,12 @@ import uuid
 from optparse import OptionParser
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from scoring import get_score, get_interests
+from store import StorageRedis
 
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
 ADMIN_SALT = "42"
+REDIS_HOST = '192.168.80.147'
 OK = 200
 BAD_REQUEST = 400
 FORBIDDEN = 403
@@ -76,6 +78,7 @@ class PhoneField(Field):
                 raise ValueError("Phone numbers must be contain 11 numbers")
             if not self.check_start_with_7(value):
                 raise ValueError("Phone must be start with 7")
+            value = str(value)
         self.data = value
 
     def check_start_with_7(self, phone):
@@ -93,6 +96,7 @@ class DateField(CharField):
                     raise ValueError("Date must be date format DD.MM.YYYY !")
             except ValueError:
                 raise ValueError("Date must be date format DD.MM.YYYY !")
+            self.data = datetime.datetime.strptime(value, "%d.%m.%Y")
 
 
 class BirthDayField(DateField):
@@ -239,7 +243,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
     router = {
         "method": method_handler
     }
-    store = None
+    store = StorageRedis(host=REDIS_HOST)
 
     def get_request_id(self, headers):
         return headers.get('HTTP_X_REQUEST_ID', uuid.uuid4().hex)
