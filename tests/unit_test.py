@@ -1,20 +1,30 @@
 import hashlib
 import datetime
 import functools
+import json
+import random
 import unittest
 import logging
 
 import api
+from api import REDIS_HOST
+from store import StorageRedis
 
 
 def cases(cases):
     def decorator(f):
         @functools.wraps(f)
         def wrapper(*args):
-            for c in cases:
+            for i, c in enumerate(cases):
                 new_args = args + (c if isinstance(c, tuple) else (c,))
-                f(*new_args)
+                try:
+                    f(*new_args)
+                except Exception as e:
+                    logging.error(f'Failed {i + 1} test case with args= {new_args}')
+                    raise e
+
         return wrapper
+
     return decorator
 
 
@@ -23,13 +33,25 @@ class TestSuite(unittest.TestCase):
         self.context = {}
         self.headers = {}
         self.settings = {}
+        self.store = StorageRedis(REDIS_HOST)
+        self.fill_ids_to_store()
+
+    def tearDown(self) -> None:
+        for i in range(4):
+            self.store.remove(key=f"i:{i}")
+
+    def fill_ids_to_store(self):
+        interests = ["cars", "pets", "travel", "hi-tech", "sport", "music", "books", "tv", "cinema", "geek", "otus"]
+        for i in range(4):
+            self.store.set(key=f"i:{i}", value=json.dumps(random.sample(interests, 2)))
 
     def get_response(self, request):
-        return api.method_handler({"body": request, "headers": self.headers}, self.context, self.settings)
+        return api.method_handler({"body": request, "headers": self.headers}, self.context, self.store)
 
     def set_valid_auth(self, request):
         if request.get("login") == api.ADMIN_LOGIN:
-            request["token"] = hashlib.sha512((datetime.datetime.now().strftime("%Y%m%d%H") + api.ADMIN_SALT).encode()).hexdigest()
+            request["token"] = hashlib.sha512(
+                (datetime.datetime.now().strftime("%Y%m%d%H") + api.ADMIN_SALT).encode()).hexdigest()
         else:
             msg = request.get("account", "") + request.get("login", "") + api.SALT
             request["token"] = hashlib.sha512(msg.encode()).hexdigest()
