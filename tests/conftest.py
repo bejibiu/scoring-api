@@ -16,7 +16,7 @@ def storage_set_name_value(storage_redis):
 
 
 @fixture
-def storage_set_name_value_to_offline(monkeypatch):
+def storage_redis_offline_mock(monkeypatch):
     def mock_get_and_set_to_redis(*args, **kwargs):
         raise ConnectionError
     monkeypatch.setattr(Redis, 'get', mock_get_and_set_to_redis)

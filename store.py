@@ -20,7 +20,16 @@ class StorageRedis:
         return result.decode() if result else None
 
     def cache_set(self, key, score, cached_time):
-        return self.retry_command(self.redis.set, name=key, value=score)
+        try:
+            return self.retry_command(self.redis.set, name=key, value=score, ex=cached_time)
+        except (ConnectionError, TimeoutError):
+            return None
+
+    def set(self, key, value):
+        return self.retry_command(self.redis.set, name=key, value=value)
+
+    def remove(self, key):
+        return self.retry_command(self.redis.delete, key)
 
     def retry_command(self, command, *args, **kwargs):
         retry_connection = self.retry_connection
@@ -33,5 +42,5 @@ class StorageRedis:
                     return command(*args, **kwargs)
                 except (ConnectionError, TimeoutError):
                     retry_connection -= 1
-            logging.error("connectrion failed")
+            logging.error("connection failed")
             raise e
