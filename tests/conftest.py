@@ -5,7 +5,7 @@ from redis import Redis
 
 @fixture
 def storage_redis():
-    return StorageRedis(host='192.168.80.147')
+    return StorageRedis()
 
 
 @fixture

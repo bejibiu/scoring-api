@@ -25,8 +25,7 @@ def test_cached_set_reconnect_if_connection_lost(storage_redis, storage_redis_of
 
 
 def test_cached_get_reconnect_if_connection_lost(storage_redis, storage_redis_offline_mock):
-    with pytest.raises(ConnectionError):
-        storage_redis.cache_set("123", "123", 30)
+    assert storage_redis.cache_set("123", "123", 30) is None
 
 
 def test_cached_get_reconnect_if_reconnection_success(storage_redis, mock_set_with_success_reconnect, caplog):

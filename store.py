@@ -4,9 +4,9 @@ import logging
 
 class StorageRedis:
 
-    def __init__(self, host='localhost'):
-        self.redis = redis.Redis(host=host)
-        self.retry_connection = 3
+    def __init__(self, host="127.0.0.1", port=6379, retry_connection=3, timeout_connection=None):
+        self.redis = redis.Redis(host=host, port=port, socket_timeout=timeout_connection)
+        self.retry_connection = retry_connection
 
     def cache_get(self, key):
         try:

@@ -12,7 +12,12 @@ from store import StorageRedis
 SALT = "Otus"
 ADMIN_LOGIN = "admin"
 ADMIN_SALT = "42"
-REDIS_HOST = '192.168.80.147'
+
+REDIS_HOST = ''
+REDIS_PORT = None
+RETRY_CONNECTION = None
+TIMEOUT_CONNECTION = None
+
 OK = 200
 BAD_REQUEST = 400
 FORBIDDEN = 403
@@ -243,7 +248,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
     router = {
         "method": method_handler
     }
-    store = StorageRedis(host=REDIS_HOST)
+    store = StorageRedis(host=REDIS_HOST, port=REDIS_PORT, timeout_connection=TIMEOUT_CONNECTION, retry_connection=RETRY_CONNECTION)
 
     def get_request_id(self, headers):
         return headers.get('HTTP_X_REQUEST_ID', uuid.uuid4().hex)
@@ -287,7 +292,17 @@ if __name__ == "__main__":
     op = OptionParser()
     op.add_option("-p", "--port", action="store", type=int, default=8080)
     op.add_option("-l", "--log", action="store", default=None)
+    op.add_option("-r", "--redis-host", action="store", default='127.0.0.1')
+    op.add_option("--redis-port", action="store", type=int, default=6379)
+    op.add_option("--retry-connection", action="store", type=int, default=3)
+    op.add_option("--timeout-connection", action="store", type=int, default=20)
     (opts, args) = op.parse_args()
+
+    REDIS_HOST = opts.redis_host
+    REDIS_PORT = opts.redis_port
+    RETRY_CONNECTION = opts.retry_connection
+    TIMEOUT_CONNECTION = opts.timeout_connection
+
     logging.basicConfig(filename=opts.log, level=logging.INFO,
                         format='[%(asctime)s] %(levelname).1s %(message)s', datefmt='%Y.%m.%d %H:%M:%S')
     server = HTTPServer(("localhost", opts.port), MainHTTPHandler)
