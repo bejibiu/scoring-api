@@ -10,12 +10,12 @@ def retry_command(retry_connection=3):
             retry_connection_ = args[0].retry_connection if isinstance(args[0], StorageRedis) else retry_connection
             try:
                 return f(*args, **kwargs)
-            except (ConnectionError, TimeoutError) as e:
+            except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError) as e:
                 while retry_connection_ > 0:
                     logging.info(f"connection lost. {retry_connection_} attempts left")
                     try:
                         return f(*args, **kwargs)
-                    except (ConnectionError, TimeoutError):
+                    except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError):
                         retry_connection_ -= 1
                 logging.error("connection failed")
                 raise e
@@ -32,7 +32,7 @@ class StorageRedis:
     def cache_get(self, key):
         try:
             return self.get(key)
-        except (ConnectionError, TimeoutError):
+        except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError):
             return None
 
     @retry_command()
@@ -43,7 +43,7 @@ class StorageRedis:
     def cache_set(self, key, score, cached_time):
         try:
             return self.set(key, score, cached_time)
-        except (ConnectionError, TimeoutError):
+        except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError):
             return None
 
     @retry_command()

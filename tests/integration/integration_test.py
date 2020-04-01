@@ -1,6 +1,6 @@
 import logging
-
 import pytest
+import redis
 
 from scoring import get_score, get_interests
 
@@ -16,7 +16,7 @@ def test_storage_get_from_redis(storage_set_name_value):
 
 
 def test_get_command_reconnect_if_connection_lost(storage_redis, storage_redis_offline_mock):
-    with pytest.raises(ConnectionError):
+    with pytest.raises(redis.exceptions.ConnectionError):
         storage_redis.get("123")
 
 
@@ -41,5 +41,5 @@ def test_get_score_if_redis_offline(storage_redis, storage_redis_offline_mock):
 
 
 def test_get_interests_if_redis_offline(storage_redis, storage_redis_offline_mock):
-    with pytest.raises(ConnectionError):
+    with pytest.raises(redis.exceptions.ConnectionError):
         get_interests(storage_redis, 1)
