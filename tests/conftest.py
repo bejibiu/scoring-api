@@ -3,7 +3,6 @@ import redis
 from store import StorageRedis
 
 
-
 @fixture
 def storage_redis():
     return StorageRedis()
@@ -33,7 +32,7 @@ def mock_get_with_success_reconnect(monkeypatch):
         nonlocal ones_raise_completed
         if ones_raise_completed:
             monkeypatch.undo()
-            return redis.Redis.set(*args, **kwargs)
+            return redis.Redis.get(*args, **kwargs)
         ones_raise_completed = True
         raise redis.exceptions.ConnectionError
 
